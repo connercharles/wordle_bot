@@ -4,11 +4,10 @@ import Layout from "./components/Layout";
 import Header from "./components/Header";
 import Response from "./components/Response";
 import History from "./components/History";
-import { generate } from "random-words";
 import { fetchWordleResult, WordleRequest } from "./api/api";
 import NextButton from "./components/NextButton";
 
-const MAX_TRIES = 6;
+const MAX_TRIES = 5;
 const CLUE_DEFAULT = "xxxxx";
 const WINNER_CLUE = "ggggg";
 
@@ -19,39 +18,45 @@ function App() {
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>("");
     const [gameOver, setGameOver] = useState<boolean>(false);
+    const [tries, setTries] = useState<number>(0);
 
-    // The api requires a word and a clue to get response,
-    // since I don't have a word for the initial state I generated a random word
-    useEffect(() => {
-        const newWord = generate({ minLength: 5, maxLength: 5, exactly: 1 })[0];
-        setSuggestedWord(newWord);
-    }, []);
+    const getNextSuggestion = async (history: WordleRequest) => {
+        setLoading(true);
+        try {
+            const response = await fetchWordleResult(history);
+            setSuggestedWord(response.guess);
+        } catch (error: any) {
+            setError(error.message);
+        }
+        setLoading(false);
+    };
 
     const handleLetterClick = (letterFeedback: React.SetStateAction<string>) => {
-        if (!gameOver) {
+        if (tries <= MAX_TRIES || !gameOver) {
             setClue(letterFeedback);
         }
     };
 
     const handleNextClick = async () => {
-        setLoading(true);
+        setTries(tries + 1);
         const updatedHistory = [...history, { word: suggestedWord, clue }];
         setHistory(updatedHistory);
-        try {
-            const response = await fetchWordleResult(updatedHistory);
-            setSuggestedWord(response.guess);
-        } catch (error: any) {
-            setError(error.message);
+        if (tries <= MAX_TRIES) {
+            getNextSuggestion(updatedHistory);
         }
         setClue(clue.replaceAll("y", "x"));
-        setLoading(false);
     };
 
+    // initial state
     useEffect(() => {
-        if (history.length >= MAX_TRIES) {
+        getNextSuggestion([]);
+    }, []);
+
+    useEffect(() => {
+        if (tries >= MAX_TRIES) {
             setGameOver(true);
         }
-    }, [history]);
+    }, [tries]);
 
     useEffect(() => {
         if (clue === WINNER_CLUE) {
